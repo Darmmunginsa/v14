@@ -1,0 +1,140 @@
+<script>
+  let map, marker, geocoder, infoWindow, placesService, autocomplete;
+
+  function initMap() {
+    geocoder = new google.maps.Geocoder();
+    infoWindow = new google.maps.InfoWindow();
+
+    map = new google.maps.Map(document.getElementById("map"), {
+      center: { lat: 13.7563, lng: 100.5018 },
+      zoom: 10,
+      gestureHandling: 'greedy',
+    });
+
+    placesService = new google.maps.places.PlacesService(map);
+
+    autocomplete = new google.maps.places.Autocomplete(
+      document.getElementById("searchBox")
+    );
+    autocomplete.bindTo("bounds", map);
+    autocomplete.setFields(["geometry"]);
+
+    autocomplete.addListener("place_changed", () => {
+      const place = autocomplete.getPlace();
+      if (!place.geometry) {
+        alert("ไม่พบข้อมูลสถานที่จากการเลือก");
+        return;
+      }
+      const loc = place.geometry.location;
+      map.setCenter(loc);
+      placeMarker(loc.lat(), loc.lng());
+      showInfo(loc.lat(), loc.lng());
+    });
+
+    map.addListener("click", (e) => {
+      const lat = e.latLng.lat();
+      const lng = e.latLng.lng();
+      placeMarker(lat, lng);
+      showInfo(lat, lng);
+    });
+
+    // Drag balloon
+    const balloon = document.getElementById("balloon");
+    let startY, startTop;
+
+    balloon.addEventListener("touchstart", function(e) {
+      startY = e.touches[0].clientY;
+      startTop = balloon.getBoundingClientRect().top;
+    }, { passive: true });
+
+    balloon.addEventListener("touchmove", function(e) {
+      const dy = e.touches[0].clientY - startY;
+      let newTop = startTop + dy;
+      const maxTop = window.innerHeight - 100;
+      const minTop = 50;
+      newTop = Math.max(minTop, Math.min(newTop, maxTop));
+      balloon.style.bottom = 'auto';
+      balloon.style.top = newTop + 'px';
+    }, { passive: true });
+  }
+
+  function searchLocation() {
+    const input = document.getElementById("searchBox").value.trim();
+    if (input) {
+      geocoder.geocode({ address: input }, (results, status) => {
+        if (status === "OK") {
+          const loc = results[0].geometry.location;
+          map.setCenter(loc);
+          placeMarker(loc.lat(), loc.lng());
+          showInfo(loc.lat(), loc.lng());
+        } else {
+          alert("ไม่พบสถานที่ที่ค้นหา: " + status);
+        }
+      });
+    }
+  }
+
+  function placeMarker(lat, lng) {
+    if (marker) marker.setMap(null);
+    marker = new google.maps.Marker({
+      position: { lat, lng },
+      map,
+    });
+  }
+
+  function showInfo(lat, lng) {
+    const url = `https://www.google.com/maps?q=${lat},${lng}`;
+    const latlng = { lat, lng };
+
+    const request = {
+      location: latlng,
+      radius: 20,
+    };
+
+    placesService.nearbySearch(request, (results, status) => {
+      let placeName = "";
+      if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
+        placeName = results[0].name;
+      } else {
+        placeName = "ไม่พบชื่อสถานที่";
+      }
+
+      const content = `
+        <div style="max-width: 250px;">
+          <strong>${placeName}</strong><br>
+          <small>${lat.toFixed(6)}, ${lng.toFixed(6)}</small><br><br>
+          <button onclick="copyToClipboard('${url}')">คัดลอกลิงก์ Google Maps</button>
+        </div>
+      `;
+      infoWindow.setContent(content);
+      infoWindow.setPosition(latlng);
+      infoWindow.open(map);
+    });
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text)
+      .then(() => alert("คัดลอกลิงก์แล้ว"))
+      .catch(() => alert("คัดลอกลิงก์ไม่สำเร็จ"));
+  }
+
+  function getCurrentLocation() {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        map.setCenter({ lat, lng });
+        placeMarker(lat, lng);
+        showInfo(lat, lng);
+      });
+    } else {
+      alert("เบราว์เซอร์ของคุณไม่รองรับ Geolocation");
+    }
+  }
+
+  function goBack() {
+    window.close();
+  }
+</script>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC4h02XblNyEBG1tszHsGVLY0-dTTeiVMk&libraries=places&callback=initMap" async defer></script>
